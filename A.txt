@@ -1,0 +1,210 @@
+npm install express twilio deepgram-sdk dotenv
+
+
+require('dotenv').config();
+const express = require('express');
+const { Deepgram } = require('@deepgram/sdk');
+const twilio = require('twilio');
+const WebSocket = require('ws');
+
+const app = express();
+const port = process.env.PORT || 3000;
+
+// Twilio credentials
+const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
+const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
+const twilioClient = twilio(twilioAccountSid, twilioAuthToken);
+
+// Deepgram credentials
+const deepgramApiKey = process.env.DEEPGRAM_API_KEY;
+const deepgram = new Deepgram(deepgramApiKey);
+
+// Webhook endpoint to answer calls
+app.post('/voice', express.urlencoded({ extended: false }), async (req, res) => {
+  // Respond with TwiML to start streaming
+  const twiml = new twilio.twiml.VoiceResponse();
+
+  // Start <Stream> to our websocket endpoint for Deepgram
+  twiml.start().stream({
+    url: process.env.PUBLIC_STREAM_URL // e.g., wss://yourdomain.com/deepgram
+  });
+
+  res.type('text/xml');
+  res.send(twiml.toString());
+});
+
+// Example Deepgram WebSocket handler
+const transcripts = [];
+
+const wss = new WebSocket.Server({ port: 8080 }); // Use secure wss in production
+
+wss.on('connection', function connection(ws) {
+  ws.on('message', async function incoming(audioData) {
+    // Send audio to Deepgram for transcription
+    const response = await deepgram.transcription.live({ model: 'glhas-agent' }, {
+      smartAgent: {
+        // Configure your agent here
+      }
+    });
+
+    // Handle transcription and generate response
+    response.addListener('transcriptReceived', (transcription) => {
+      const agentReply = transcription.channel.alternatives[0].transcript;
+      transcripts.push(agentReply);
+
+      // Send response back to caller using Twilio <Say>
+      twilioClient.calls(req.body.CallSid)
+        .update({ twiml: `<Response><Say>${agentReply}</Say></Response>` });
+    });
+
+    // Pipe audio data to Deepgram
+    ws.pipe(response);
+  });
+});
+
+app.listen(port, () => {
+  console.log(`TwiloGram server running on port ${port}`);
+});
+
+
+
+TWILIO_ACCOUNT_SID=your_twilio_sid
+TWILIO_AUTH_TOKEN=your_twilio_token
+DEEPGRAM_API_KEY=your_deepgram_key
+PUBLIC_STREAM_URL=wss://yourdomain.com/deepgram
+Certainly! To forward your Google Voice calls to Twilio, you can use Google Voice's forwarding feature along with Twilio's capabilities. Here’s a step-by-step guide to achieve this:
+
+### Step-by-Step Guide
+
+#### 1. Set Up Twilio
+1. **Create a Twilio Account**:
+   - Sign up for a [Twilio account](https://www.twilio.com/) if you don't have one.
+
+2. **Get a Twilio Phone Number**:
+   - Purchase a phone number with Programmable Voice capabilities.
+
+3. **Configure Webhook**:
+   - Go to the Twilio Console.
+   - Navigate to the phone number settings.
+   - Set the Voice & Fax > A Call Comes In webhook to point to your server or a webhook URL that handles the call.
+
+#### 2. Set Up Google Voice
+1. **Sign In to Google Voice**:
+   - Go to [Google Voice](https://voice.google.com/).
+
+2. **Forward Calls to Twilio**:
+   - Click on the gear icon (Settings) at the top right corner.
+   - Select "Call forwarding".
+   - Add a new forwarding number and enter your Twilio phone number.
+   - Choose whether you want to forward all calls, missed calls, or voicemails.
+   - Save the changes.
+
+### Example Implementation Using Twilio and Deepgram
+
+Since you want to forward calls from Google Voice to Twilio and handle them with Deepgram for transcription and a conversational AI agent, you can follow these steps:
+
+#### 1. Prerequisites
+- Node.js installed
+- Install necessary packages:
+  ```sh
+  npm install express twilio deepgram-sdk dotenv
+  ```
+
+#### 2. Example Implementation (server.js)
+
+Here is the JavaScript code for the integration:
+
+```javascript
+require('dotenv').config();
+const express = require('express');
+const { Deepgram } = require('@deepgram/sdk');
+const twilio = require('twilio');
+const WebSocket = require('ws');
+
+const app = express();
+const port = process.env.PORT || 3000;
+
+// Twilio credentials
+const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
+const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
+const twilioClient = twilio(twilioAccountSid, twilioAuthToken);
+
+// Deepgram credentials
+const deepgramApiKey = process.env.DEEPGRAM_API_KEY;
+const deepgram = new Deepgram(deepgramApiKey);
+
+// Webhook endpoint to answer calls
+app.post('/voice', express.urlencoded({ extended: false }), async (req, res) => {
+  // Respond with TwiML to start streaming
+  const twiml = new twilio.twiml.VoiceResponse();
+
+  // Start <Stream> to our websocket endpoint for Deepgram
+  twiml.start().stream({
+    url: process.env.PUBLIC_STREAM_URL // e.g., wss://yourdomain.com/deepgram
+  });
+
+  res.type('text/xml');
+  res.send(twiml.toString());
+});
+
+// Example Deepgram WebSocket handler
+const transcripts = [];
+
+const wss = new WebSocket.Server({ port: 8080 }); // Use secure wss in production
+
+wss.on('connection', function connection(ws) {
+  ws.on('message', async function incoming(audioData) {
+    // Send audio to Deepgram for transcription
+    const response = await deepgram.transcription.live({ model: 'glhas-agent' }, {
+      smartAgent: {
+        // Configure your agent here
+      }
+    });
+
+    // Handle transcription and generate response
+    response.addListener('transcriptReceived', (transcription) => {
+      const agentReply = transcription.channel.alternatives[0].transcript;
+      transcripts.push(agentReply);
+
+      // Send response back to caller using Twilio <Say>
+      twilioClient.calls(req.body.CallSid)
+        .update({ twiml: `<Response><Say>${agentReply}</Say></Response>` });
+    });
+
+    // Pipe audio data to Deepgram
+    ws.pipe(response);
+  });
+});
+
+app.listen(port, () => {
+  console.log(`TwiloGram server running on port ${port}`);
+});
+```
+
+#### 3. Deployment and Environment
+Set these environment variables in your `.env` file:
+
+```plaintext
+TWILIO_ACCOUNT_SID=your_twilio_sid
+TWILIO_AUTH_TOKEN=your_twilio_token
+DEEPGRAM_API_KEY=your_deepgram_key
+PUBLIC_STREAM_URL=wss://yourdomain.com/deepgram
+```
+
+Configure your Twilio phone number’s voice webhook to point to your server `/voice` endpoint.
+
+#### 4. Notes
+- The above is a simplified reference implementation. You’ll need to handle audio streams securely and robustly.
+- Adjust the code to fit your specific requirements and ensure proper error handling.
+- Store transcripts as needed (database, file, etc.).
+
+### Summary
+1. **Forward Google Voice Calls to Twilio**:
+   - Set up call forwarding in Google Voice to your Twilio phone number.
+
+2. **Handle Calls with Twilio and Deepgram**:
+   - Use Twilio to receive calls and stream audio to Deepgram.
+   - Use Deepgram for transcription and a conversational AI agent for generating responses.
+   - Send responses back to the caller using Twilio.
+
+By following these steps, you can successfully forward your Google Voice calls to Twilio and handle them with Deepgram for transcription and conversational AI.
