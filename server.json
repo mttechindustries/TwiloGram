@@ -1,0 +1,64 @@
+require('dotenv').config();
+const express = require('express');
+const { Deepgram } = require('@deepgram/sdk');
+const twilio = require('twilio');
+const WebSocket = require('ws');
+
+const app = express();
+const port = process.env.PORT || 3000;
+
+// Twilio credentials
+const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
+const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
+const twilioClient = twilio(twilioAccountSid, twilioAuthToken);
+
+// Deepgram credentials
+const deepgramApiKey = process.env.DEEPGRAM_API_KEY;
+const deepgram = new Deepgram(deepgramApiKey);
+
+// Webhook endpoint to answer calls
+app.post('/voice', express.urlencoded({ extended: false }), async (req, res) => {
+  // Respond with TwiML to start streaming
+  const twiml = new twilio.twiml.VoiceResponse();
+
+  // Start <Stream> to our websocket endpoint for Deepgram
+  twiml.start().stream({
+    url: process.env.PUBLIC_STREAM_URL // e.g., wss://yourdomain.com/deepgram
+  });
+
+  res.type('text/xml');
+  res.send(twiml.toString());
+});
+
+// Example Deepgram WebSocket handler
+const transcripts = [];
+
+const wss = new WebSocket.Server({ port: 8080 }); // Use secure wss in production
+
+wss.on('connection', function connection(ws) {
+  ws.on('message', async function incoming(audioData) {
+    // Send audio to Deepgram for transcription
+    const response = await deepgram.transcription.live({ model: 'general' }, {
+      smartAgent: {
+        // Configure your agent here
+      }
+    });
+
+    // Handle transcription and generate response
+    response.addListener('transcriptReceived', (transcription) => {
+      const agentReply = transcription.channel.alternatives[0].transcript;
+      transcripts.push(agentReply);
+
+      // Send response back to caller using Twilio <Say>
+      twilioClient.calls(req.body.CallSid)
+        .update({ twiml: `<Response><Say>${agentReply}</Say></Response>` });
+    });
+
+    // Pipe audio data to Deepgram
+    ws.pipe(response);
+  });
+});
+
+app.listen(port, () => {
+  console.log(`TwiloGram server running on port ${port}`);
+});
