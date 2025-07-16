@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
-const { exec, execSync } = require('child_process');
+const { execSync } = require('child_process');
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -77,7 +77,7 @@ async function setup() {
     console.log('Your project is set up! To run it, follow these steps:');
     console.log('\n1. Start a tunnel to expose your local server to the internet.');
     console.log('   We recommend ngrok:');
-    console.log(`   ${yellow}ngrok http \${process.env.PORT || 8080}${reset}`);
+    console.log(`   ${yellow}ngrok http ${process.env.PORT || 8080}${reset}`);
     console.log('   Copy the HTTPS URL provided by ngrok (e.g., https://1234abcd.ngrok.io).');
 
     console.log('\n2. Configure your Twilio Phone Number:');
