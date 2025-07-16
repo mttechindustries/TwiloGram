@@ -1,0 +1,17 @@
+{
+  "name": "twilogram",
+  "version": "1.0.0",
+  "description": "A project to forward Google Voice calls to Twilio and transcribe them using Deepgram.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "setup": "node setup.js"
+  },
+  "dependencies": {
+    "@deepgram/sdk": "^0.10.0",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "twilio": "^3.89.0",
+    "websocket": "^1.0.34"
+  }
+}
